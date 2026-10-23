@@ -1,6 +1,7 @@
 name: ClickerApp
 options:
   bundleIdPrefix: com.example
+  xcodeVersion: "15.4"
 targets:
   ClickerApp:
     type: application
@@ -10,10 +11,11 @@ targets:
       - path: ClickerApp
     settings:
       base:
-        PRODUCT_NAME: ClickerApp
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.ClickerApp
+        PRODUCT_NAME: nowera1n
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.nowera1n
         INFOPLIST_FILE: ClickerApp/Info.plist
         GENERATE_INFOPLIST_FILE: "NO"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         MARKETING_VERSION: "1.0"
         CURRENT_PROJECT_VERSION: "1"
         SWIFT_VERSION: "5.0"
