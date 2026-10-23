@@ -95,7 +95,7 @@ struct ContentView: View {
                     }
                 }) {
                     Text("Сбросить счет")
-                        .font(.subheadline.semibold())
+                        .font(.subheadline.bold())
                         .foregroundColor(.red.opacity(0.9))
                 }
                 .padding(.top, 10)
