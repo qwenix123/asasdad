@@ -16,6 +16,36 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
+      - name: Setup App Icon
+        run: |
+          mkdir -p ClickerApp/Assets.xcassets/AppIcon.appiconset
+          curl -s "https://i.ibb.co.com/xSS0tC6t/image.png" -o temp_logo.png
+          sips -s format png -z 1024 1024 temp_logo.png --out ClickerApp/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png
+          cat << 'EOF' > ClickerApp/Assets.xcassets/AppIcon.appiconset/Contents.json
+          {
+            "images" : [
+              {
+                "filename" : "AppIcon-1024.png",
+                "idiom" : "universal",
+                "platform" : "ios",
+                "size" : "1024x1024"
+              }
+            ],
+            "info" : {
+              "author" : "xcode",
+              "version" : 1
+            }
+          }
+          EOF
+          cat << 'EOF' > ClickerApp/Assets.xcassets/Contents.json
+          {
+            "info" : {
+              "author" : "xcode",
+              "version" : 1
+            }
+          }
+          EOF
+
       - name: Generate Xcode Project
         run: |
           xcodegen generate
