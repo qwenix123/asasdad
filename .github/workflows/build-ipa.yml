@@ -37,13 +37,13 @@ jobs:
       - name: Package into IPA
         run: |
           mkdir -p Payload
-          cp -r build/Build/Products/Release-iphoneos/ClickerApp.app Payload/
-          zip -r ClickerApp.ipa Payload
+          cp -r build/Build/Products/Release-iphoneos/*.app Payload/
+          zip -r nowera1n.ipa Payload
           rm -rf Payload
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ClickerApp-unsigned
-          path: ClickerApp.ipa
+          name: nowera1n-unsigned
+          path: nowera1n.ipa
           retention-days: 7
