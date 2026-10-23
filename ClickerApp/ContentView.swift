@@ -7,8 +7,7 @@ struct TweakItem: Identifiable, Equatable {
     let name: String
     let author: String
     let desc: String
-    let iconSystemName: String
-    let iconColor: Color
+    let iconUrl: String
     let version: String
     let size: String
     let repo: String
@@ -54,7 +53,8 @@ struct ContentView: View {
     @State private var showSettings: Bool = false
     @State private var selectedTweak: TweakItem? = nil
     @State private var showRespringBanner: Bool = false
-    @State private var isRespringing: Bool = false
+    @State private var isRebooting: Bool = false
+    @State private var rebootProgress: Double = 0.0
     @State private var showTrollStore: Bool = false
     @State private var showFilza: Bool = false
     @State private var currentTime: String = ""
@@ -67,11 +67,11 @@ struct ContentView: View {
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     
     let tweaks: [TweakItem] = [
-        TweakItem(id: "filza", name: "Filza File Manager", author: "TIGI Software", desc: "Complete iOS File Manager.", iconSystemName: "folder.fill", iconColor: .blue, version: "3.9.8", size: "14.2 MB", repo: "TIGI"),
-        TweakItem(id: "snowboard", name: "SnowBoard", author: "SparkDev", desc: "Icon theming engine for iOS.", iconSystemName: "paintbrush.fill", iconColor: .purple, version: "1.5.26", size: "2.1 MB", repo: "SparkDev"),
-        TweakItem(id: "trollstorelite", name: "TrollStore Lite", author: "opa334", desc: "Lightweight IPA installer.", iconSystemName: "shippingbox.fill", iconColor: .cyan, version: "1.0.1", size: "1.4 MB", repo: "Havoc"),
-        TweakItem(id: "aim", name: "AIM", author: "Havoc", desc: "Advanced Interface Modifier.", iconSystemName: "slider.horizontal.3", iconColor: .orange, version: "2.0.3", size: "5.8 MB", repo: "Havoc"),
-        TweakItem(id: "gesturesxv", name: "GesturesXV", author: "Havoc", desc: "Custom navigation gestures.", iconSystemName: "hand.draw.fill", iconColor: .green, version: "1.2.0", size: "800 KB", repo: "Havoc")
+        TweakItem(id: "filza", name: "Filza File Manager", author: "TIGI Software", desc: "Complete iOS File Manager.", iconUrl: "https://images.sftcdn.net/images/t_app-icon-s/p/2b822e83-b7b5-4390-9f45-19c890a440a4/723054986/filza-file-manager-icon.jpg", version: "3.9.8", size: "14.2 MB", repo: "TIGI"),
+        TweakItem(id: "snowboard", name: "SnowBoard", author: "SparkDev", desc: "Icon theming engine for iOS.", iconUrl: "https://api.ios-repo-updates.com/1.0/image/?u=https%3A%2F%2Fwww.sparkdev.me%2Fpackage-logo%2Fcom.spark.snowboard&s=60x60&f=webpc", version: "1.5.26", size: "2.1 MB", repo: "SparkDev"),
+        TweakItem(id: "trollstorelite", name: "TrollStore Lite", author: "opa334", desc: "Lightweight IPA installer.", iconUrl: "https://media.havoc.app/66d4ecc6e95a6f1dee4b898c?w=1920&q=75", version: "1.0.1", size: "1.4 MB", repo: "Havoc"),
+        TweakItem(id: "aim", name: "AIM", author: "Havoc", desc: "Advanced Interface Modifier.", iconUrl: "https://media.havoc.app/639388b976cf759aa74b0815?w=1920&q=75", version: "2.0.3", size: "5.8 MB", repo: "Havoc"),
+        TweakItem(id: "gesturesxv", name: "GesturesXV", author: "Havoc", desc: "Custom navigation gestures.", iconUrl: "https://media.havoc.app/637514bb4e85484a9a4b8340?w=1920&q=75", version: "1.2.0", size: "800 KB", repo: "Havoc")
     ]
     
     var body: some View {
@@ -79,7 +79,6 @@ struct ContentView: View {
             Color.black.ignoresSafeArea()
             
             VStack(spacing: 0) {
-                // Tab Content
                 if currentTab == .home {
                     HomeTabView(
                         isInstalled: $isInstalled,
@@ -90,7 +89,8 @@ struct ContentView: View {
                         sessionId: sessionId,
                         currentTime: currentTime,
                         onOpenSettings: { showSettings = true },
-                        onStartInstall: { startExploitChain() }
+                        onStartInstall: { startExploitChain() },
+                        onUninstall: { resetJailbreak() }
                     )
                 } else {
                     TweaksTabView(
@@ -103,20 +103,17 @@ struct ContentView: View {
                 }
                 
                 Spacer(minLength: 0)
-                
-                // Bottom Tab Bar
                 CustomTabBar(currentTab: $currentTab, isInstalled: isInstalled)
             }
             
-            // Respring Banner
             if showRespringBanner {
                 VStack {
                     Spacer()
-                    Button(action: triggerRespring) {
+                    Button(action: triggerReboot) {
                         HStack(spacing: 8) {
                             Image(systemName: "arrow.triangle.2.circlepath")
                                 .font(.system(size: 15, weight: .bold))
-                            Text("Respring to apply")
+                            Text("Reboot Device")
                                 .font(.system(size: 15, weight: .bold))
                         }
                         .foregroundColor(.black)
@@ -131,9 +128,8 @@ struct ContentView: View {
                 }
             }
             
-            // Fullscreen Native Respring Animation
-            if isRespringing {
-                RespringView()
+            if isRebooting {
+                AppleBootScreenView(progress: rebootProgress)
                     .transition(.opacity)
                     .zIndex(9999)
             }
@@ -158,13 +154,8 @@ struct ContentView: View {
             SettingsSheet(
                 selectedExploit: $selectedExploit,
                 onUninstall: {
-                    isInstalled = false
-                    installedTweaksCsv = ""
-                    logs.removeAll()
-                    progress = 0
-                    showRespringBanner = false
+                    resetJailbreak()
                     showSettings = false
-                    addLog("nowera1n uninstalled. Environment reset.", type: .warning)
                 }
             )
         }
@@ -181,7 +172,7 @@ struct ContentView: View {
                 if isInstalled {
                     addLog("[INFO] Environment check passed.", type: .muted)
                     addLog("[INFO] Device kernel slide: 0x1e800000", type: .muted)
-                    addLog("[SUCCESS] nowera1n is already active.", type: .success)
+                    addLog("[SUCCESS] nowera1n is currently active.", type: .success)
                 } else {
                     addLog("[INFO] nowera1n v2.4.0 (arm64)", type: .muted)
                     addLog("[INFO] Environment check passed. iOS device detected.", type: .muted)
@@ -194,7 +185,6 @@ struct ContentView: View {
         }
     }
     
-    // MARK: - Helpers
     private func updateTime() {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm"
@@ -222,7 +212,16 @@ struct ContentView: View {
         }
     }
     
-    // MARK: - Detailed Jailbreak Log Chain
+    private func resetJailbreak() {
+        isInstalled = false
+        installedTweaksCsv = ""
+        logs.removeAll()
+        progress = 0
+        showRespringBanner = false
+        addLog("[INFO] nowera1n uninstalled. Environment reset.", type: .warning)
+        addLog("[INFO] Ready to install nowera1n.", type: .muted)
+    }
+    
     private func startExploitChain() {
         guard !isInstalling else { return }
         isInstalling = true
@@ -277,24 +276,30 @@ struct ContentView: View {
         }
     }
     
-    // MARK: - Native Respring (Never breaks, repeatable!)
-    private func triggerRespring() {
-        withAnimation(.easeIn(duration: 0.2)) {
-            isRespringing = true
+    private func triggerReboot() {
+        withAnimation(.easeIn(duration: 0.25)) {
+            isRebooting = true
+            rebootProgress = 0.0
             showRespringBanner = false
         }
         
         let generator = UIImpactFeedbackGenerator(style: .heavy)
         generator.impactOccurred()
         
-        // Simulates realistic SpringBoard reload
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+        let intervals = 20
+        for i in 1...intervals {
+            DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.15) {
+                self.rebootProgress = Double(i) / Double(intervals)
+            }
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.4) {
             withAnimation(.easeOut(duration: 0.4)) {
-                isRespringing = false
+                isRebooting = false
             }
             let successGen = UINotificationFeedbackGenerator()
             successGen.notificationOccurred(.success)
-            addLog("[INFO] SpringBoard reloaded successfully (respring).", type: .success)
+            addLog("[INFO] Device rebooted. Kernel patches active.", type: .success)
         }
     }
 }
@@ -310,23 +315,22 @@ struct HomeTabView: View {
     let currentTime: String
     let onOpenSettings: () -> Void
     let onStartInstall: () -> Void
+    let onUninstall: () -> Void
     
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             ZStack(alignment: .topTrailing) {
                 VStack(spacing: 8) {
-                    // App Logo Icon
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .fill(LinearGradient(colors: [Color(white: 0.15), Color(white: 0.05)], startPoint: .top, endPoint: .bottom))
-                            .frame(width: 72, height: 72)
-                            .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color(white: 0.2), lineWidth: 1))
-                        
-                        Image(systemName: "bolt.shield.fill")
-                            .font(.system(size: 34))
-                            .foregroundColor(.white)
+                    AsyncImage(url: URL(string: "https://i.ibb.co.com/xSS0tC6t/image.png")) { phase in
+                        if let image = phase.image {
+                            image.resizable().aspectRatio(contentMode: .fill)
+                        } else {
+                            Color(white: 0.1)
+                        }
                     }
+                    .frame(width: 76, height: 76)
+                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color(white: 0.18), lineWidth: 1))
                     .padding(.top, 10)
                     
                     Text("nowera1n")
@@ -348,7 +352,6 @@ struct HomeTabView: View {
                 }
                 .frame(maxWidth: .infinity)
                 
-                // Settings Gear Button
                 Button(action: onOpenSettings) {
                     Image(systemName: "gearshape.fill")
                         .font(.system(size: 16))
@@ -363,7 +366,6 @@ struct HomeTabView: View {
             }
             .padding(.bottom, 12)
             
-            // Monospace Console Box
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 4) {
@@ -390,7 +392,6 @@ struct HomeTabView: View {
                 }
             }
             
-            // Progress Bar
             ZStack(alignment: .leading) {
                 Capsule()
                     .fill(Color(white: 0.15))
@@ -404,25 +405,46 @@ struct HomeTabView: View {
             .padding(.vertical, 14)
             .opacity(isInstalling || progress > 0 ? 1 : 0)
             
-            // Action Button
-            Button(action: onStartInstall) {
-                Text(isInstalled ? "nowera1n Installed" : (isInstalling ? "Installing..." : "Install nowera1n"))
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(isInstalled ? Color(white: 0.4) : .black)
+            VStack(spacing: 10) {
+                if !isInstalled {
+                    Button(action: onStartInstall) {
+                        Text(isInstalling ? "Installing..." : "Install nowera1n")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.black)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 54)
+                            .background(Color.white)
+                            .cornerRadius(14)
+                    }
+                    .disabled(isInstalling)
+                } else {
+                    HStack(spacing: 8) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                        Text("nowera1n Installed")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(Color(white: 0.85))
+                    }
                     .frame(maxWidth: .infinity)
                     .frame(height: 54)
-                    .background(isInstalled ? Color(white: 0.1) : Color.white)
+                    .background(Color(white: 0.1))
                     .cornerRadius(14)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14)
-                            .stroke(isInstalled ? Color(white: 0.2) : Color.clear, lineWidth: 1)
-                    )
+                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.green.opacity(0.4), lineWidth: 1))
+                    
+                    Button(action: onUninstall) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "trash.fill")
+                            Text("Uninstall / Reset for reinstallation")
+                        }
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(.red.opacity(0.85))
+                        .padding(.vertical, 6)
+                    }
+                }
             }
-            .disabled(isInstalled || isInstalling)
             .padding(.horizontal, 20)
             .padding(.bottom, 10)
             
-            // Footer Meta
             HStack {
                 HStack(spacing: 6) {
                     Circle()
@@ -460,19 +482,20 @@ struct TweaksTabView: View {
                     ForEach(tweaks) { tweak in
                         Button(action: { onSelectTweak(tweak) }) {
                             HStack(spacing: 14) {
-                                ZStack {
-                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                        .fill(Color(white: 0.12))
-                                        .frame(width: 54, height: 54)
-                                    
-                                    Image(systemName: tweak.iconSystemName)
-                                        .font(.system(size: 24))
-                                        .foregroundColor(tweak.iconColor)
+                                AsyncImage(url: URL(string: tweak.iconUrl)) { phase in
+                                    if let image = phase.image {
+                                        image.resizable().aspectRatio(contentMode: .fill)
+                                    } else {
+                                        Color(white: 0.15)
+                                    }
                                 }
+                                .frame(width: 54, height: 54)
+                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color(white: 0.15), lineWidth: 1))
                                 
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(tweak.name)
-                                        .font(.system(size: 15, weight: .semibold))
+                                        .font(.system(size: 15, weight: .bold))
                                         .foregroundColor(.white)
                                     
                                     Text(tweak.author)
@@ -554,18 +577,28 @@ struct CustomTabBar: View {
     }
 }
 
-// MARK: - Native Respring View
-struct RespringView: View {
-    @State private var rotation: Double = 0
+// MARK: - Realistic Apple Boot Screen (Reboot)
+struct AppleBootScreenView: View {
+    let progress: Double
     
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
             
-            VStack(spacing: 20) {
-                ProgressView()
-                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                    .scaleEffect(1.6)
+            VStack(spacing: 40) {
+                Image(systemName: "apple.logo")
+                    .font(.system(size: 78))
+                    .foregroundColor(.white)
+                
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color(white: 0.2))
+                        .frame(width: 180, height: 4)
+                    
+                    Capsule()
+                        .fill(Color.white)
+                        .frame(width: max(0, min(CGFloat(progress), 1.0)) * 180, height: 4)
+                }
             }
         }
     }
@@ -584,17 +617,17 @@ struct TweakDetailSheet: View {
             Color.black.ignoresSafeArea()
             
             VStack(alignment: .leading, spacing: 20) {
-                // Header
                 HStack(spacing: 16) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .fill(Color(white: 0.12))
-                            .frame(width: 80, height: 80)
-                        
-                        Image(systemName: tweak.iconSystemName)
-                            .font(.system(size: 36))
-                            .foregroundColor(tweak.iconColor)
+                    AsyncImage(url: URL(string: tweak.iconUrl)) { phase in
+                        if let image = phase.image {
+                            image.resizable().aspectRatio(contentMode: .fill)
+                        } else {
+                            Color(white: 0.15)
+                        }
                     }
+                    .frame(width: 80, height: 80)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color(white: 0.15), lineWidth: 1))
                     
                     VStack(alignment: .leading, spacing: 4) {
                         Text(tweak.name)
@@ -641,7 +674,6 @@ struct TweakDetailSheet: View {
                 
                 Divider().background(Color(white: 0.2))
                 
-                // Meta Grid
                 HStack {
                     Spacer()
                     VStack {
@@ -664,7 +696,6 @@ struct TweakDetailSheet: View {
                 
                 Divider().background(Color(white: 0.2))
                 
-                // Description
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Description")
                         .font(.system(size: 16, weight: .bold))
@@ -703,7 +734,6 @@ struct SettingsSheet: View {
                     .font(.system(size: 13))
                     .foregroundColor(Color(white: 0.5))
                 
-                // Segmented Control
                 HStack(spacing: 4) {
                     Button(action: { selectedExploit = "cha1n" }) {
                         VStack(spacing: 2) {
@@ -737,10 +767,9 @@ struct SettingsSheet: View {
                 
                 Spacer()
                 
-                // Action Buttons
                 VStack(spacing: 12) {
                     Button(action: onUninstall) {
-                        Text("Uninstall nowera1n")
+                        Text("Reset & Uninstall nowera1n")
                             .font(.system(size: 15, weight: .bold))
                             .foregroundColor(.red)
                             .frame(maxWidth: .infinity)
@@ -780,12 +809,18 @@ struct TrollStoreAppView: View {
             Color.black.ignoresSafeArea()
             
             VStack(spacing: 0) {
-                // Header
                 HStack {
                     HStack(spacing: 10) {
-                        Image(systemName: "shippingbox.fill")
-                            .font(.system(size: 22))
-                            .foregroundColor(.cyan)
+                        AsyncImage(url: URL(string: "https://media.havoc.app/66d4ecc6e95a6f1dee4b898c?w=1920&q=75")) { phase in
+                            if let img = phase.image {
+                                img.resizable().aspectRatio(contentMode: .fill)
+                            } else {
+                                Color.cyan
+                            }
+                        }
+                        .frame(width: 28, height: 28)
+                        .cornerRadius(6)
+                        
                         Text("TrollStore Lite")
                             .font(.system(size: 18, weight: .bold))
                             .foregroundColor(.white)
@@ -801,7 +836,6 @@ struct TrollStoreAppView: View {
                 .padding(.vertical, 14)
                 .background(Color(white: 0.1))
                 
-                // Segmented Tabs
                 Picker("Tabs", selection: $selectedTab) {
                     Text("Apps").tag(0)
                     Text("Settings").tag(1)
@@ -810,16 +844,18 @@ struct TrollStoreAppView: View {
                 .padding(14)
                 
                 if selectedTab == 0 {
-                    // Apps List
                     ScrollView {
                         VStack(spacing: 12) {
                             HStack(spacing: 14) {
-                                Image(systemName: "app.fill")
-                                    .font(.system(size: 32))
-                                    .foregroundColor(.purple)
-                                    .frame(width: 50, height: 50)
-                                    .background(Color(white: 0.12))
-                                    .cornerRadius(12)
+                                AsyncImage(url: URL(string: "https://i.pinimg.com/736x/cf/5f/7d/cf5f7dca8d30d52a39f4043f3796d7f0.jpg")) { phase in
+                                    if let img = phase.image {
+                                        img.resizable().aspectRatio(contentMode: .fill)
+                                    } else {
+                                        Color(white: 0.15)
+                                    }
+                                }
+                                .frame(width: 50, height: 50)
+                                .cornerRadius(12)
                                 
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text("GitHub Mobile")
@@ -838,12 +874,15 @@ struct TrollStoreAppView: View {
                             .cornerRadius(14)
                             
                             HStack(spacing: 14) {
-                                Image(systemName: "paperplane.fill")
-                                    .font(.system(size: 28))
-                                    .foregroundColor(.blue)
-                                    .frame(width: 50, height: 50)
-                                    .background(Color(white: 0.12))
-                                    .cornerRadius(12)
+                                AsyncImage(url: URL(string: "https://i.pinimg.com/736x/59/6d/74/596d74fed827cf406cbd2a4f0d8f00b2.jpg")) { phase in
+                                    if let img = phase.image {
+                                        img.resizable().aspectRatio(contentMode: .fill)
+                                    } else {
+                                        Color.blue
+                                    }
+                                }
+                                .frame(width: 50, height: 50)
+                                .cornerRadius(12)
                                 
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text("Telegram")
@@ -875,7 +914,6 @@ struct TrollStoreAppView: View {
                         .padding(.horizontal, 20)
                     }
                 } else {
-                    // Settings List
                     VStack(spacing: 0) {
                         Toggle("Enable URL Scheme", isOn: $urlSchemeEnabled)
                             .padding(14)
@@ -944,7 +982,6 @@ struct FilzaAppView: View {
             Color.black.ignoresSafeArea()
             
             VStack(spacing: 0) {
-                // Header
                 HStack {
                     if currentPath != "/var" {
                         Button(action: goBack) {
@@ -975,7 +1012,6 @@ struct FilzaAppView: View {
                 .padding(.vertical, 14)
                 .background(Color(white: 0.1))
                 
-                // File List
                 List {
                     ForEach(currentFiles) { file in
                         Button(action: { handleFileTap(file) }) {
